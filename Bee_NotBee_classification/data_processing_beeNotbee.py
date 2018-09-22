@@ -16,10 +16,10 @@ from utils import load_audioFiles_saves_segments, write_Statelabels_from_beeNotB
 def main():
    #----------------------------------- parameters to change-----------------------------------#
     block_size=60 # blocks of 60 seconds
-    thresholds=[0, 5]  # minimum length for nobee intervals: 0 or 5 seconds (creates one label file per threshold value
-    path_audioFiles="C:\\Users\\ines\\Dropbox\\QMUL\\BEESzzzz\\To Bee or not to Bee_the annotated dataset"+os.sep
-    annotations_path="C:\\Users\\ines\\Dropbox\\QMUL\\BEESzzzz\\To Bee or not to Bee_the annotated dataset"+os.sep
-    path_save_audio_labels='E:\\dataset_BeeNoBee_'+str(block_size)+'sec'+os.sep
+    thresholds=[0, 5]  # minimum length for nobee intervals: 0 or 5 seconds (creates one label file per threshold value)
+    path_audioFiles="C:\\Users\\ines\\Dropbox\\QMUL\\BEESzzzz\\To Bee or not to Bee_the annotated dataset"+os.sep  # path to audio files
+    annotations_path="C:\\Users\\ines\\Dropbox\\QMUL\\BEESzzzz\\To Bee or not to Bee_the annotated dataset"+os.sep # path to .lab files
+    path_save_audio_labels='E:\\dataset_BeeNoBee_'+str(block_size)+'sec'+os.sep  # path where to save audio segments and labels files.
     #-------------------------------------------------------------------------------------------#
     
     
