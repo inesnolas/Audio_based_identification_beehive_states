@@ -32,10 +32,10 @@ def main():
     load_audioFiles_saves_segments( path_audioFiles, path_save_audio_labels, block_size , thresholds, annotations_path, save_audioSegments='yes')
     
     
-    path_beeNotbee_labels=path_save_audio_labels + 'labels_BeeNotBee_th'+str(thresholds[0])+'.csv'
+    path_beeNotbee_labels=path_save_audio_labels + 'labels_BeeNotBee_th'+str(thresholds[0])+'.csv' 
     # reads labels beeNotBee files and creates corresponding states label file.
     write_Statelabels_from_beeNotBeelabels(path_save_audio_labels, path_beeNotbee_labels, states=['active','missing queen','swarm' ])
-
+    
 
 if __name__ == "__main__":
     main()

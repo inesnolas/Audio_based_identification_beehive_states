@@ -13,12 +13,23 @@ from info import i, printb, printr, printp, print
 
 
 
-# functions to deal with annotations .lab:
+# functions to deal with annotations .lab files:
 
 def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockStart, blockfinish, annotations_path, threshold=0):
-    # interval thershold gives the minimum duration of the no bee intervals we want to consider.
-    # interval_trheshold=0 uses every event as notBee whatever the duration
-    # interval_thershold=0.5 disregards intervals with less than half a second duration.
+    
+    
+    ## function: reads corresponding annotation file (.lab) and assigns a label to one block/sample. Appends label into csv file.
+    ##
+    ## inputs: 
+    ## audiofilename = name of the audio file (no path), block_name = name of the sample/segment,  blockStart = time point in seconds where block starts, blockfinish = time point in seconds where block ends, annotations_path = path to annotations folder (where .lab files are), threshold = value tor threshold. 
+    ##
+    ## outputs:
+    ## label_th= 2 element list, [0] = a label (bee / nobee) for the block and threshold considered; [1] = label strength, value that reflects the proportion of nobee interval in respect to the whole block.
+    
+    
+    # thershold gives the minimum duration of the no bee intervals we want to consider.
+    # trheshold=0 uses every event as notBee whatever the duration
+    # thershold=0.5 disregards intervals with less than half a second duration.
     
     block_length=blockfinish-blockStart
     
@@ -103,7 +114,7 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
                     
                     labels_th= [label2assign, round(label_strength,2)]  # if label_strehgth ==0 --> bee segment 
                     
-                    assert (blockfinish <=tp1 ), ('the end of the requeste block falls outside the file: block ending: '+ str(blockfinish)+' end of file at: '+ str(tp1))
+                    assert (blockfinish <=tp1 ), ('the end of the request block falls outside the file: block ending: '+ str(blockfinish)+' end of file at: '+ str(tp1))
             
     except FileNotFoundError as e:
         print(e, '--Anotation file does not exist! label as unknown')
