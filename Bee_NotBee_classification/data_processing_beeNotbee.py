@@ -9,7 +9,7 @@
 
 import os
 from info import i, printb, printr, printp, print
-from utils import load_audioFiles_saves_segments, write_Statelabels_from_beeNotBeelabels
+from utils import load_audioFiles_saves_segments, write_Statelabels_from_beeNotBeelabels, get_uniqueHives_names_from_File, split_samples_byHive
 
 
 
@@ -36,6 +36,12 @@ def main():
     # reads labels beeNotBee files and creates corresponding states label file.
     write_Statelabels_from_beeNotBeelabels(path_save_audio_labels, path_beeNotbee_labels, states=['active','missing queen','swarm' ])
     
-
+    
+    
+    # splits data by Hive 
+    hives=get_uniqueHives_names_from_File(path_save_audio_labels)
+    split_dict=split_samples_byHive(0.1, 0.5, hives, path_save_audio_labels+'split_byHive_3')
+    
+    
 if __name__ == "__main__":
     main()

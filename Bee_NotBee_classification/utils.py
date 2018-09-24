@@ -5,7 +5,10 @@ import os
 import librosa
 import pdb
 import csv
+import json
+import re
 import numpy as np
+import random
 from info import i, printb, printr, printp, print
 
 
@@ -270,19 +273,147 @@ def write_Statelabels_from_beeNotBeelabels(path_save, path_labels_BeeNotBee, sta
                 writer.writerow({'sample_name':row[0], 'label':label_state})
     return
 
+def get_list_samples_names(path_audio_folder):
+    sample_ids=[os.path.basename(x) for x in glob.glob(path_audio_folder+'*.wav')]
+    return sample_ids
+    
+
+def write_sample_ids_perHive(sample_ids , savepath):
+    
+  #identify different hives:
+            #in the NU-Hive dataset the hives are identified in the string Hive1 or Hive3 in the beginning.
+            #in OSBH every file referring to the same person will be considered as if the same Hive: identified by #nameInitials -
+            # other files that do not follow this can be grouped in the same hive ()
+            #get from unique filenames all unique identifiers of hives: either read the string until the first_  : example 'Hive3_
+            #or get the string starting in '#' until the first ' - '. example: '#CF003 - '
+    #uniqueFilenames=['Hive3_20_07_2017_QueenBee_H3_audio___15_40_00.wav', 
+    #                 'Hive1_20_07_2017_QueenBee_H3_audio___15_40_00.wav', 
+    #                 'Hive3_20_07_22017_QueenBee_H3_audio___15_40_00.wav', 
+    #                 'Sound Inside a Swarming Bee Hive  -25 to -15 minutes-sE02T8B2LfA.wav', 
+    #                 'Sound Inside a Swarming Bee Hive  +25 to -15 minutes-sE02T8B2LfA.wav', 
+    #                 '#CF003 - Active - Day - (222).csv', '#CF003 - Active - Day - (212).csv']
     
     
+    uniqueHivesNames={}
+    pat1=re.compile("(\w+\d)\s-\s")
+    pat2=re.compile("^(Hive\d)_")
+    for sample in sample_ids:
+
+        match_pat1=pat1.match(sample)
+        match_pat2=pat2.match(sample)
+        if match_pat1:
+            if match_pat1.group(1) in uniqueHivesNames.keys():
+                uniqueHivesNames[match_pat1.group(1)].append(sample)
+            else: 
+                uniqueHivesNames[match_pat1.group(1)]=[sample]
+        elif match_pat2:
+            if match_pat2.group(1) in uniqueHivesNames.keys():
+                uniqueHivesNames[match_pat2.group(1)].append(sample)
+            else: 
+                uniqueHivesNames[match_pat2.group(1)]=[sample]
+        else: 
+            #odd case, like files names 'Sound Inside a Swarming Bee Hive  -25 to -15 minutes-sE02T8B2LfA.wav'
+             #will be all gatehered as the same hive, although we need to be careful if other names appear!
+            if 'Sound Inside a Swarming Bee Hive' in uniqueHivesNames.keys():
+                uniqueHivesNames['Sound Inside a Swarming Bee Hive'].append(sample)
+            else: 
+                uniqueHivesNames['Sound Inside a Swarming Bee Hive']=[sample]  
+                
+    
+    
+    with open(savepath+'sampleID_perHive.json', 'w') as outfile:
+        json.dump(uniqueHivesNames, outfile)
+    
+    return uniqueHivesNames
+    
+    
+def get_uniqueHives_names_from_File(path_file_samplesId_perHive):
+    
+    hives_data = json.load(open(path_file_samplesId_perHive + 'sampleID_perHive.json', "r"))
+
+    n_hives=len(hives_data.keys())
+    
+    return hives_data
+     
+
+     
+
+   
 #todo
-#def split_samples(test_size, validation_size, splitBy='day'):
-    # splitBy='day'
-    # splitBy='hive'
-    # splitBy='dataset'
-    # splitBy='location'
+
+#def balance_dataset()
+# splitBy = 'day'
+# splitBy = 'hive'
+# splitBy = 'dataset'
+# splitBy = 'location'
+# splitBy = 'randomly'
+    
+def split_samples_byHive(test_size, train_size, hives_data_dictionary, splitPath_save):
+    
+    ## creates 3 different sets intended for hive-independent classification. meaning that samples are separated accordingly to the hive.
+    ## input: test_size, ex: 0.1  : 10% hives for test
+    ## train_size, ex: 0.7: 70% hives for training, 30% for valisdation. (after having selected test samples!!)  
+    ## splitPath_save = path and name where to save the splitted samples id dictionary
+    
+    ## output:
+    ## returns and dumps a dictionary: {test : [sample_id1, sample_id2, ..], train : [], 'val': [sample_id2, sample_id2]}
+    
+    splittedSamples={'test': [], 'train': [], 'val':[]}
+    
+    n_hives = len(hives_data_dictionary.keys())
+            
+    hives_list=list(hives_data_dictionary.keys())
+    
+    
+    
+    hives_rest1=random.sample(hives_list, round(n_hives*(1-test_size)))
+    
+    if len(hives_rest1) == len(hives_list):
+        rand_hive = random.sample(range(len(hives_rest1)),1)
+        hives_rest=hives_rest1[:]
+        del hives_rest[rand_hive[0]]
+    else:
+        
+        hives_rest = hives_rest1[:]
+  
+    hiveTEST=np.setdiff1d(hives_list , hives_rest)
+    hiveVAL=random.sample(hives_rest, round(len(hives_rest)*train_size))
+    hiveTRAIN=np.setdiff1d(hives_rest , hiveVAL)
+    
+    
+    print('hives for testing: '+ str(list(hiveTEST)))
+    print('hives for training: '+ str(list(hiveTRAIN)))
+    print('hives for validation: '+ str(hiveVAL))
+    
+    
+    for ht in list(hiveTEST):
+        splittedSamples['test'].extend(hives_data_dictionary[ht])
+
+    for h1 in list(hiveTRAIN):
+        splittedSamples['train'].extend(hives_data_dictionary[h1])
+    
+    for h2 in hiveVAL:
+        splittedSamples['val'].extend(hives_data_dictionary[h2])
+
+    with open(splitPath_save+'.json', 'w') as outfile:
+        json.dump(splittedSamples, outfile)
+    
+    return splittedSamples
+
+
+
+        
+    
+    
+    #return index_TESTE, index_TRAIN, index_VAL
+
 
     #save ids for csv or similar! maybe directly for numpy archive, or dump
     
     # return test_ids, train_ids, val_ids
     
-    
+# feature extraction 
+#  SVM functions
+
     
     
