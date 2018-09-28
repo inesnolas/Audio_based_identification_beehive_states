@@ -77,7 +77,7 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
                 tp0=float(parsed_line[0])
                 tp1=float(parsed_line[1])
                 annotation_label=parsed_line[2]
-                if blockfinish < tp0: # no need to read further nobee intervals since annotation line is already after bloch fininshes
+                if blockfinish < tp0: # no need to read further nobee intervals since annotation line is already after block finishes
                     break
                     
                 if annotation_label== 'nobee':
@@ -117,8 +117,10 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
                     
                     labels_th= [label2assign, round(label_strength,2)]  # if label_strehgth ==0 --> bee segment 
                     
-                    assert (blockfinish <=tp1 ), ('the end of the request block falls outside the file: block ending: '+ str(blockfinish)+' end of file at: '+ str(tp1))
+                    
+            assert (blockfinish <=tp1 ), ('the end of the request block falls outside the file: block ending: '+ str(blockfinish)+' end of file at: '+ str(tp1))
             
+                
     except FileNotFoundError as e:
         print(e, '--Anotation file does not exist! label as unknown')
         print(annotation_filename=audiofilename[0:-4]+'.lab')
@@ -131,7 +133,8 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
     except Exception as e1:
         print('unknown exception: '+str(e1))
         quit
-        
+    
+    
     return labels_th
 
 
@@ -163,7 +166,7 @@ def uniform_block_size(undersized_block, block_size_samples, method='repeat' ):
 
      
 
-def load_audioFiles_saves_segments( path_audioFiles,path_save_audio_labels, block_size , thresholds, annotations_path, save_audioSegments='yes'):
+def load_audioFiles_saves_segments( path_audioFiles,path_save_audio_labels, block_size , thresholds, annotations_path, read_beeNotBee_annotations ='yes', save_audioSegments='yes'):
 
     
     audiofilenames_list = [os.path.basename(x) for x in glob.glob(path_audioFiles+'*.mp3')]
@@ -200,22 +203,24 @@ def load_audioFiles_saves_segments( path_audioFiles,path_save_audio_labels, bloc
                 print(block_name)
                 
                 # READ BEE NOT_BEE ANNOTATIONS:
-                blockStart=offset
-                blockfinish=offset+block_size
-                
-                for th in thresholds:
-                
-                    label_file_exists = os.path.isfile(path_save_audio_labels+'labels_BeeNotBee_th'+str(th)+'.csv')
-                    with open(path_save_audio_labels+'labels_BeeNotBee_th'+str(th)+'.csv','a', newline='') as label_file:
-                        writer =csv.DictWriter(label_file, fieldnames=['sample_name', 'segment_start','segment_finish', 'label', 'label_strength'], delimiter=',')
-                        if not label_file_exists:
-                            writer.writeheader()
-                        
-                        label_block_th=read_beeNotBee_annotations_saves_labels(file_name, block_name,  blockStart, blockfinish, annotations_path, th)
-                                                   
-                        writer.writerow({'sample_name': block_name, 'segment_start': blockStart, 'segment_finish': blockfinish,  'label': label_block_th[0] , 'label_strength': label_block_th[1]})
-                        print('-----------------Wrote label for th '+ str(th)+' seconds of segment'+str(block_id)  ) 
-                
+                if read_beeNotBee_annotations == 'yes':
+                    print('---------------------Will read BeeNotbee anotations and create labels for segment'+str(block_id))
+                    blockStart=offset
+                    blockfinish=offset+block_size
+                    
+                    for th in thresholds:
+                    
+                        label_file_exists = os.path.isfile(path_save_audio_labels+'labels_BeeNotBee_th'+str(th)+'.csv')
+                        with open(path_save_audio_labels+'labels_BeeNotBee_th'+str(th)+'.csv','a', newline='') as label_file:
+                            writer =csv.DictWriter(label_file, fieldnames=['sample_name', 'segment_start','segment_finish', 'label', 'label_strength'], delimiter=',')
+                            if not label_file_exists:
+                                writer.writeheader()
+                            
+                            label_block_th=read_beeNotBee_annotations_saves_labels(file_name, block_name,  blockStart, blockfinish, annotations_path, th)
+                                                       
+                            writer.writerow({'sample_name': block_name, 'segment_start': blockStart, 'segment_finish': blockfinish,  'label': label_block_th[0] , 'label_strength': label_block_th[1]})
+                            print('-----------------Wrote label for th '+ str(th)+' seconds of segment'+str(block_id)  ) 
+                    
                
                 # MAKE BLOCK OF THE SAME SIZE:
                 if block.shape[0] < block_size*sr:   
@@ -247,7 +252,7 @@ def read_HiveState_fromSampleName( filename, states):   #states: state_labels=['
     for state in states:
         if state in filename.lower():
             label_state = state
-    #incorporate condition for italian recordings which do not follow the same annotation: 'QueenBee' or 'NO_QueenBee'        
+    #incorporate condition for Nu-hive recordings which do not follow the same annotation: 'QueenBee' or 'NO_QueenBee'        
     if label_state=='other':
         if 'NO_QueenBee' in filename:
             label_state = states[1]
@@ -257,15 +262,15 @@ def read_HiveState_fromSampleName( filename, states):   #states: state_labels=['
     
 def write_Statelabels_from_beeNotBeelabels(path_save, path_labels_BeeNotBee, states=['active','missing queen','swarm' ]):
     
-    label_file_exists = os.path.isfile(path_save+'state_labels.csv')
+    #label_file_exists = os.path.isfile(path_save+'state_labels.csv')
     
     with open(path_labels_BeeNotBee, 'r' ) as rfile, \
-    open(path_save+'state_labels.csv', 'a', newline='') as f_out:
+    open(path_save+'state_labels.csv', 'w', newline='') as f_out:
         csvreader = csv.reader(rfile, delimiter=',')
         writer= csv.DictWriter(f_out, fieldnames=['sample_name', 'label'], delimiter=',') 
         
-        if not label_file_exists:
-            writer.writeheader()
+        #if not label_file_exists:
+        writer.writeheader()
         
         for row in csvreader:
             if not row[0]=='sample_name':
@@ -273,8 +278,28 @@ def write_Statelabels_from_beeNotBeelabels(path_save, path_labels_BeeNotBee, sta
                 writer.writerow({'sample_name':row[0], 'label':label_state})
     return
 
-def get_list_samples_names(path_audio_folder):
-    sample_ids=[os.path.basename(x) for x in glob.glob(path_audio_folder+'*.wav')]
+    
+    
+def write_Statelabels_from_samplesFolder(path_save, path_samplesFolder, states=['active','missing queen','swarm' ]):
+    
+    label_file_exists = os.path.isfile(path_save+'state_labels.csv')
+    
+    samples_names = get_list_samples_names(path_samplesFolder)
+    with open(path_save+'state_labels.csv', 'a', newline='') as f_out:
+        
+        writer= csv.DictWriter(f_out, fieldnames=['sample_name', 'label'], delimiter=',') 
+        
+        if not label_file_exists:
+            writer.writeheader()
+        
+        for name in samples_names:
+            label_state = read_HiveState_fromSampleName(name, states)
+            writer.writerow({'sample_name': name , 'label':label_state})
+    return    
+    
+    
+def get_list_samples_names(path_audioSegments_folder):
+    sample_ids=[os.path.basename(x) for x in glob.glob(path_audioSegments_folder+'*.wav')]
     return sample_ids
     
 
@@ -313,7 +338,7 @@ def write_sample_ids_perHive(sample_ids , savepath):
                 uniqueHivesNames[match_pat2.group(1)]=[sample]
         else: 
             #odd case, like files names 'Sound Inside a Swarming Bee Hive  -25 to -15 minutes-sE02T8B2LfA.wav'
-             #will be all gatehered as the same hive, although we need to be careful if other names appear!
+            #will be all gathred as the same hive, although we need to be careful if other names appear!
             if 'Sound Inside a Swarming Bee Hive' in uniqueHivesNames.keys():
                 uniqueHivesNames['Sound Inside a Swarming Bee Hive'].append(sample)
             else: 
@@ -334,19 +359,8 @@ def get_uniqueHives_names_from_File(path_file_samplesId_perHive):
     n_hives=len(hives_data.keys())
     
     return hives_data
-     
-
-     
-
    
-#todo
 
-#def balance_dataset()
-# splitBy = 'day'
-# splitBy = 'hive'
-# splitBy = 'dataset'
-# splitBy = 'location'
-# splitBy = 'randomly'
     
 def split_samples_byHive(test_size, train_size, hives_data_dictionary, splitPath_save):
     
@@ -401,18 +415,163 @@ def split_samples_byHive(test_size, train_size, hives_data_dictionary, splitPath
     return splittedSamples
 
 
+def split_samples_ramdom(test_size, train_size, path_audioSegments_folder, splitPath_save):
+
+    
+    splittedSamples = {'test': [], 'train': [], 'val':[]}
+    
+    list_samples_id = get_list_samples_names(path_audioSegments_folder)
+    n_segments = len(list_samples_id)
+    samplesTEST=random.sample(list_samples_id, round(n_segments*test_size))
+    samples_rest=np.setdiff1d(list_samples_id , samplesTEST)
+    samplesVAL=random.sample(samples_rest.tolist(), round(samples_rest.size*train_size))
+    samplesTRAIN=np.setdiff1d(samples_rest , samplesVAL).tolist()
+
+    
+    print('samples for testing: '+ str(list(samplesTEST)))
+    print('samples for training: '+ str(list(samplesTRAIN)))
+    print('samples for validation: '+ str(samplesVAL))
+    
+    splittedSamples['val'] = samplesVAL
+    splittedSamples['test'] = samplesTEST
+    splittedSamples['train'] = samplesTRAIN
+    
+    with open(splitPath_save+'.json', 'w') as outfile:
+        json.dump(splittedSamples, outfile)
+    
+    return splittedSamples
+
+    
+    
+    
+
+# def split_samples_byPartOfDay(test_size, train_size, hives_data_dictionary, splitPath_save):
+    
+    # creates 3 different sets 
+    # input: test_size, ex: 0.1  : 10% hives for test
+    # train_size, ex: 0.7: 70% hives for training, 30% for validation. (after having selected test samples!!)  
+    # splitPath_save = path and filename where to save the splitted samples id dictionary
+    
+    # output:
+    # returns and dumps a dictionary: {test : [sample_id1, sample_id2, ..], train : [], 'val': [sample_id2, sample_id2]}
+    
+    # splittedSamples={'test': [], 'train': [], 'val':[]}
+    
+    # n_hives = len(hives_data_dictionary.keys())
+            
+    # hives_list=list(hives_data_dictionary.keys())
+    
+    
+    
+    # hives_rest1=random.sample(hives_list, round(n_hives*(1-test_size)))
+    
+    # if len(hives_rest1) == len(hives_list):
+        # rand_hive = random.sample(range(len(hives_rest1)),1)
+        # hives_rest=hives_rest1[:]
+        # del hives_rest[rand_hive[0]]
+    # else:
+        
+        # hives_rest = hives_rest1[:]
+  
+    # hiveTEST=np.setdiff1d(hives_list , hives_rest)
+    # hiveVAL=random.sample(hives_rest, round(len(hives_rest)*train_size))
+    # hiveTRAIN=np.setdiff1d(hives_rest , hiveVAL)
+    
+    
+    # print('hives for testing: '+ str(list(hiveTEST)))
+    # print('hives for training: '+ str(list(hiveTRAIN)))
+    # print('hives for validation: '+ str(hiveVAL))
+    
+    
+    # for ht in list(hiveTEST):
+        # splittedSamples['test'].extend(hives_data_dictionary[ht])
+
+    # for h1 in list(hiveTRAIN):
+        # splittedSamples['train'].extend(hives_data_dictionary[h1])
+    
+    # for h2 in hiveVAL:
+        # splittedSamples['val'].extend(hives_data_dictionary[h2])
+
+    # with open(splitPath_save+'.json', 'w') as outfile:
+        # json.dump(splittedSamples, outfile)
+    
+    # return splittedSamples
+
+
+    
+
+    
+def raw_feature_fromSample( path_audio_sample, feature2extract ):
+    
+    audio_sample, sr = librosa.core.load(path_audio_sample)
+    
+    m = re.match(r"\w+s(\d+)", feature2extract)
+    n_freqs=int(m.groups()[0])
+    
+    Melspec = librosa.feature.melspectrogram(audio_sample, n_mels = n_freqs) # computes mel spectrograms from audio sample, 
+    
+    if 'LOG' in feature2extract: #'LOG_MELfrequencies48'
+        Melspec=librosa.feature.melspectrogram(audio_sample, sr=sr, n_mels=n_freqs)
+        x=librosa.power_to_db(Melspec+1)
+        
+    elif 'MFCCs' in feature2extract:
+        n_freqs = int(feature2extract[5:len(feature2extract)])
+        Melspec = librosa.feature.melspectrogram(audio_sample, sr=sr)
+        x = librosa.feature.mfcc(S=librosa.power_to_db(Melspec),sr=sr, n_mfcc = n_freqs)
+        
+    else:
+        x = Melspec
+
+    return x   
+
 
         
+        
+def compute_statistics_overSpectogram(spectrogram):        
+        
+    x_diff=np.diff(spectrogram,1,0)    
     
-    
-    #return index_TESTE, index_TRAIN, index_VAL
+    X_4features=np.concatenate((np.mean(spectrogram,1), np.std(spectrogram,1),np.mean(x_diff,1), np.std(x_diff,1)), axis=0)
+   
+    X_flat = np.asarray(X_4features)
+   
+    return X_flat
 
 
-    #save ids for csv or similar! maybe directly for numpy archive, or dump
+def compute_statistics_overMFCCs(MFCC, first='yes'):
     
-    # return test_ids, train_ids, val_ids
+    x_delta=librosa.feature.delta(MFCC)
+    x_delta2=librosa.feature.delta(MFCC, order=2)
     
-# feature extraction 
+    if first=='no':
+        MFCC=MFCC[1:]
+        x_delta=x_delta[1:]
+        x_delta2=x_delta2[1:]
+                
+    X_4features=np.concatenate((np.mean(MFCC,1), np.std(MFCC,1),np.mean(x_delta,1), np.std(x_delta,1), np.mean(x_delta2,1), np.std(x_delta2,1)), axis=0)
+    
+    X_flat = np.asarray(X_4features)
+
+    return X_flat    
+        
+    
+  
+
+
+# def get_features_from_samples(path_audio_samples, raw_feature, normalization, )
+# x= raw_feature_fromSample( path_save_audio_labels+, 'MFCCs20' )
+
+
+
+#todo
+
+
+# splitBy = 'day'
+# splitBy = 'dataset'
+# splitBy = 'location'
+  
+#balance_dataset()    
+
 #  SVM functions
 
     

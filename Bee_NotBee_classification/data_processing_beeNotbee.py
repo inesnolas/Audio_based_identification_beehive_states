@@ -1,9 +1,9 @@
 #
-#loads audio files which have annotations (maybe provide only data from the BeeNotBee annotated dataset
-#segments and saves chunks accordingly to segment size, keepname of file+_segment_id
-#reads both labes from annotations and state, save both csv
+#loads audio files which have annotations 
+#segments and saves chunks accordingly to segment size, 
+#reads labels from annotations and state, save both in csv file
 
-#only calls functions, previously declared in utils.py
+#all functions are defined in utils.py
 
 
 
@@ -29,7 +29,7 @@ def main():
     # segments audio files, assigns label BeeNotBee to each block, writes labels to csv , saves segmened blocks in wav.
     # independently of flag save_audioSegments, if .wav with same name already exists it won't save again.
     # new labels are just appended to existing labels file, if purpose is to redo the whole file delete before running.
-    load_audioFiles_saves_segments( path_audioFiles, path_save_audio_labels, block_size , thresholds, annotations_path, save_audioSegments='yes')
+    load_audioFiles_saves_segments( path_audioFiles, path_save_audio_labels, block_size , thresholds, annotations_path, read_beeNotBee_annotations='yes', save_audioSegments='yes')
     
     
     path_beeNotbee_labels=path_save_audio_labels + 'labels_BeeNotBee_th'+str(thresholds[0])+'.csv' 
@@ -38,9 +38,22 @@ def main():
     
     
     
+    
+    
+    sample_ids=get_list_samples_names(path_save_audio_labels) # get sample ids from audio segments folder.
+    
     # splits data by Hive 
-    hives=get_uniqueHives_names_from_File(path_save_audio_labels)
-    split_dict=split_samples_byHive(0.1, 0.5, hives, path_save_audio_labels+'split_byHive_3')
+    hives=write_sample_ids_perHive(sample_ids , path_save_audio_labels)  # retrieves unique hives names and also writes these to a file
+    #hives=get_uniqueHives_names_from_File(path_save_audio_labels)
+    for i in range(3):
+        split_dict = split_samples_byHive(0.1, 0.5, hives, path_save_audio_labels+'split_byHive_'+str(i))
+    
+    #splits data randomly
+    for i in range(3):
+        split_dict = split_samples_ramdom(0.1,0.5,path_save_audio_labels, path_save_audio_labels+'split_random_'+str(i))
+        
+        
+    
     
     
 if __name__ == "__main__":
