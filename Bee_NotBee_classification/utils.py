@@ -556,10 +556,41 @@ def compute_statistics_overMFCCs(MFCC, first='yes'):
         
     
   
+def get_samples_id_perSet(pathSplitFile):
+
+   
+    split_dict=json.load(open (pathSplitFile, 'r'))
+    
+    sample_ids_test = split_dict['test'] 
+    sample_ids_train = split_dict['train'] 
+    sample_ids_val = split_dict['val']
+    return sample_ids_test, sample_ids_train, sample_ids_val
 
 
-# def get_features_from_samples(path_audio_samples, raw_feature, normalization, )
-# x= raw_feature_fromSample( path_save_audio_labels+, 'MFCCs20' )
+def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, normalization ):
+    
+    n_samples_set = len(sample_ids)
+    feature_Maps = []
+    
+    for sample in sample_ids:
+        
+        # raw feature extraction:
+        x = raw_feature_fromSample( path_save_audio_labels+sample, raw_feature )
+        
+        
+        #normalization here:
+        
+        
+        # high level feature extraction:
+        if 'MFCCs' in raw_feature:
+            X = compute_statistics_overMFCCs(x, 'yes') 
+        
+              
+        
+        feature_Maps.append(X)
+    return feature_Maps
+            
+        
 
 
 
