@@ -9,14 +9,18 @@ import json
 import re
 import numpy as np
 import random
+import librosa.display
+import IPython.display as ipd
+from sklearn import preprocessing
+
+from matplotlib import pyplot as plt
 from info import i, printb, printr, printp, print
 
 
 
+    
+#DATA_PRE PROCESSING FUNCTIONS:
 
-
-
-# functions to deal with annotations .lab files:
 
 def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockStart, blockfinish, annotations_path, threshold=0):
     
@@ -138,8 +142,6 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
     return labels_th
 
 
-    
-#pre_processing functions:
 
 
 
@@ -445,7 +447,7 @@ def split_samples_ramdom(test_size, train_size, path_audioSegments_folder, split
     
     
 
-# def split_samples_byPartOfDay(test_size, train_size, hives_data_dictionary, splitPath_save):
+def split_samples_byPartOfDay(test_size, train_size, hives_data_dictionary, splitPath_save):
     
     # creates 3 different sets 
     # input: test_size, ex: 0.1  : 10% hives for test
@@ -495,11 +497,11 @@ def split_samples_ramdom(test_size, train_size, path_audioSegments_folder, split
     # with open(splitPath_save+'.json', 'w') as outfile:
         # json.dump(splittedSamples, outfile)
     
-    # return splittedSamples
+    return splittedSamples
 
 
     
-
+# FEATURE EXTRACTION FUNCTIONS
     
 def raw_feature_fromSample( path_audio_sample, feature2extract ):
     
@@ -554,6 +556,7 @@ def compute_statistics_overMFCCs(MFCC, first='yes'):
 
     return X_flat    
         
+
     
   
 def get_samples_id_perSet(pathSplitFile):
@@ -565,36 +568,152 @@ def get_samples_id_perSet(pathSplitFile):
     sample_ids_train = split_dict['train'] 
     sample_ids_val = split_dict['val']
     return sample_ids_test, sample_ids_train, sample_ids_val
-
-
-def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, normalization ):
     
-    n_samples_set = len(sample_ids)
+    
+    
+def featureMap_normalization_block_level(feature_map, normalizationType='min_max'):
+   
+    
+    # TODO other levels of normalization (example: whole dataset, set (train, val or test) level)
+
+    if normalizationType== 'min_max': # min_max scaling
+        
+        min_max_scaler = preprocessing.MinMaxScaler()
+        normalized_featureMap = min_max_scaler.fit_transform(feature_map)
+    
+    if normalizationType == 'z_norm': # standardization(z-normalization)
+        normalized_featureMap = preprocessing.scale(feature_map)   
+
+    return normalized_featureMap
+    
+        
+   
+
+def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, normalization, high_level_features ): #normalization = NO z_norm, min_max
+    ## function to extract features 
+    
+    
+    n_samples_set = len(sample_ids) # 4
     feature_Maps = []
     
     for sample in sample_ids:
         
         # raw feature extraction:
-        x = raw_feature_fromSample( path_save_audio_labels+sample, raw_feature )
+        x = raw_feature_fromSample( path_audio_samples+sample, raw_feature ) # x.shape: (4, 20, 2584)
         
         
         #normalization here:
+        if not normalization == 'NO':
+            x_norm = featureMap_normalization_block_level(x, normalizationType = normalization) 
+        else: x_norm = x
+        
+        if high_level_features:
+            # high level feature extraction:
+            if 'MFCCs' in raw_feature:
+                X = compute_statistics_overMFCCs(x_norm, 'yes') # X.shape: (4 , 120)
+            else: 
+                X = compute_statistics_overSpectogram(x_norm)
+                
+            feature_map=X
+        else:
+            feature_map=x_norm
         
         
-        # high level feature extraction:
-        if 'MFCCs' in raw_feature:
-            X = compute_statistics_overMFCCs(x, 'yes') 
+        feature_Maps.append(feature_map)
         
-              
-        
-        feature_Maps.append(X)
     return feature_Maps
             
         
 
+        
+        
+# SVM CLASSIFICATION:
 
 
-#todo
+
+def SVM_Classification_inSplittedSets(X_flat_train, Y_train, X_flat_test, Y_test, kerneloption='rbf'):
+
+
+# CHECK IF LABELS; (Y_train) MUST BE BINARY or CAN BE STRINGS!!!
+
+
+    printb('Starting classification with SVM:')
+    Test_Preds=[]
+    Train_Preds=[]
+    Test_Preds_Proba=[]
+    Train_Preds_Proba=[]
+    Test_GroundT=[]
+    Train_GroundT=[]
+    CLFs=[]
+    
+    
+    #train :
+    clf = svm.SVC(kernel=kerneloption, probability=True)
+    clf.fit(X_flat_train, Y_train)
+    y_pred_train = clf.predict(X_flat_train)  # get binary predictions
+    y_pred_proba_train = clf.predict_proba(X_flat_train) # get probability predictions
+    
+    
+    # test:
+    y_pred_test = clf.predict(X_flat_test)  # get binary predictions
+    y_pred_proba_test = clf.predict_proba(X_flat_test)  # get probability predictions
+        
+    return clf, y_pred_proba_train, y_pred_train, y_pred_proba_test, y_pred_test
+      
+        
+        
+        
+        
+        
+        
+# EVALUATE RESULTS AND PLOT FUNCTIONS        
+
+def show_sample(sample_path, sample_id, labels=['labels_BeeNotBee_th0', 'labels_BeeNotBee_th5', 'state_labels']):
+    
+    #TODO: make plot titles
+    # TODO visualize annotations on top of spectrograms
+    
+    sample, sr = librosa.core.load(sample_path+sample_id+'.wav')
+    # - listen audio 
+    ipd.Audio(sample,rate=sr)
+    
+    feature_map_mel = librosa.power_to_db(librosa.feature.melspectrogram(sample, n_mels = 128) )
+    feature_map_MFCCs = librosa.feature.mfcc(S=librosa.power_to_db(feature_map_mel),sr=sr, n_mfcc = 20)
+    
+    fig = plt.figure(figsize=(10,20))
+    # - visualize in frequency, 
+    plt.subplot(3,1, 1)
+    librosa.display.specshow(feature_map_mel, sr = sr, y_axis='mel')
+    plt.subplot(3,1, 2)
+    librosa.display.specshow(feature_map_MFCCs, sr = sr, x_axis='time')
+    
+    
+    
+    # - visualize in time
+    plt.subplot(3,1,3)
+    librosa.display.waveplot( sample, sr=sr, x_axis='time')
+    plt.show()
+    
+    # - get labels
+    labels2show={}
+    for l in labels:
+        
+        with open( sample_path+l+'.csv', 'r') as labcsv:
+            reader= csv.reader(labcsv, delimiter=',')
+            for row in reader:
+                if sample_id in row:
+                    labels2show[l]=row
+
+
+    
+    
+    print(json.dumps(labels2show,sort_keys=True, indent=4))
+    
+    return
+    
+    
+    
+    #todo
 
 
 # splitBy = 'day'

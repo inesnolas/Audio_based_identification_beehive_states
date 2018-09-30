@@ -9,7 +9,7 @@
 
 import os
 from info import i, printb, printr, printp, print
-from utils import load_audioFiles_saves_segments, write_Statelabels_from_beeNotBeelabels, get_uniqueHives_names_from_File, split_samples_byHive
+from utils import load_audioFiles_saves_segments, write_Statelabels_from_beeNotBeelabels, get_uniqueHives_names_from_File, split_samples_byHive, get_samples_id_perSet, get_features_from_samples
 
 
 
@@ -37,22 +37,25 @@ def main():
     write_Statelabels_from_beeNotBeelabels(path_save_audio_labels, path_beeNotbee_labels, states=['active','missing queen','swarm' ])
     
     
-    
-    
-    
     sample_ids=get_list_samples_names(path_save_audio_labels) # get sample ids from audio segments folder.
     
-    # splits data by Hive 
+    # split data by Hive 
     hives=write_sample_ids_perHive(sample_ids , path_save_audio_labels)  # retrieves unique hives names and also writes these to a file
     #hives=get_uniqueHives_names_from_File(path_save_audio_labels)
     for i in range(3):
         split_dict = split_samples_byHive(0.1, 0.5, hives, path_save_audio_labels+'split_byHive_'+str(i))
     
-    #splits data randomly
+    #split data randomly
     for i in range(3):
         split_dict = split_samples_ramdom(0.1,0.5,path_save_audio_labels, path_save_audio_labels+'split_random_'+str(i))
         
         
+    
+    
+    #Feature extraction: 
+    sample_ids_test, sample_ids_train, sample_ids_val = get_samples_id_perSet(path_save_audio_labels+'split_random_0.json')
+    X= get_features_from_samples(path_save_audio_labels, sample_ids_val, 'MFCCs20', 'NO', 0)
+    
     
     
     
