@@ -9,7 +9,7 @@
 
 import os
 from info import i, printb, printr, printp, print
-from utils import load_audioFiles_saves_segments, write_Statelabels_from_beeNotBeelabels, get_uniqueHives_names_from_File, split_samples_byHive, get_samples_id_perSet, get_features_from_samples
+from utils import load_audioFiles_saves_segments, write_Statelabels_from_beeNotBeelabels, get_uniqueHives_names_from_File, split_samples_byHive, get_samples_id_perSet, get_features_from_samples, get_GT_labels_fromFiles, labels2binary
 
 
 
@@ -50,13 +50,11 @@ def main():
         split_dict = split_samples_ramdom(0.1,0.5,path_save_audio_labels, path_save_audio_labels+'split_random_'+str(i))
         
         
-    
-    
     #Feature extraction: 
     sample_ids_test, sample_ids_train, sample_ids_val = get_samples_id_perSet(path_save_audio_labels+'split_random_0.json')
-    X= get_features_from_samples(path_save_audio_labels, sample_ids_val, 'MFCCs20', 'NO', 0)
-    
-    
+    X_train = get_features_from_samples(path_save_audio_labels, sample_ids_train, 'MFCCs20', 'NO', 0)
+    labels_train = get_GT_labels_fromFiles(path_save_audio_labels, sample_ids_train, labels2read)
+    Y_train= labels2binary('nobee', labels_train)
     
     
 if __name__ == "__main__":

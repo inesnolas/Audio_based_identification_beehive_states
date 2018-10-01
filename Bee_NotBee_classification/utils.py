@@ -87,7 +87,7 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
                 if annotation_label== 'nobee':
                     
                         
-                    if tp1-tp0 >= threshold:  # only progreess if nobee interval is longer than defined threshold.
+                    if tp1-tp0 >= threshold:  # only progress if nobee interval is longer than defined threshold.
                     
                         if tp0 > blockStart and tp0 <= blockfinish and tp1 >= blockfinish:
                             
@@ -119,7 +119,7 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
                     label_strength= intersected_s/block_length # proportion of nobee length in the block
                     
                     
-                    labels_th= [label2assign, round(label_strength,2)]  # if label_strehgth ==0 --> bee segment 
+                    labels_th= [label2assign, round(label_strength,3)]  # if label_strehgth ==0 --> bee segment 
                     
                     
             assert (blockfinish <=tp1 ), ('the end of the request block falls outside the file: block ending: '+ str(blockfinish)+' end of file at: '+ str(tp1))
@@ -214,13 +214,13 @@ def load_audioFiles_saves_segments( path_audioFiles,path_save_audio_labels, bloc
                     
                         label_file_exists = os.path.isfile(path_save_audio_labels+'labels_BeeNotBee_th'+str(th)+'.csv')
                         with open(path_save_audio_labels+'labels_BeeNotBee_th'+str(th)+'.csv','a', newline='') as label_file:
-                            writer =csv.DictWriter(label_file, fieldnames=['sample_name', 'segment_start','segment_finish', 'label', 'label_strength'], delimiter=',')
+                            writer =csv.DictWriter(label_file, fieldnames=['sample_name', 'segment_start','segment_finish', 'label_strength', 'label'], delimiter=',')
                             if not label_file_exists:
                                 writer.writeheader()
                             
                             label_block_th=read_beeNotBee_annotations_saves_labels(file_name, block_name,  blockStart, blockfinish, annotations_path, th)
                                                        
-                            writer.writerow({'sample_name': block_name, 'segment_start': blockStart, 'segment_finish': blockfinish,  'label': label_block_th[0] , 'label_strength': label_block_th[1]})
+                            writer.writerow({'sample_name': block_name, 'segment_start': blockStart, 'segment_finish': blockfinish , 'label_strength': label_block_th[1],  'label': label_block_th[0]} )
                             print('-----------------Wrote label for th '+ str(th)+' seconds of segment'+str(block_id)  ) 
                     
                
@@ -625,10 +625,58 @@ def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, norma
             
         
 
-        
-        
-# SVM CLASSIFICATION:
+def get_GT_labels_fromFiles(path_save_audio_labels, sample_ids, labels2read) : #labels2read =  name of the label file    
 
+    labels = []
+    fileAsdict={}
+    pdb.set_trace()
+    with open(path_save_audio_labels + labels2read+'.csv', 'r') as labfile:
+        csvreader = csv.reader(labfile, delimiter=',')    
+   
+        for row in csvreader:
+            if not row[0] == 'sample_name':
+                fileAsdict[row[0]]=row[-1]   # row[-1] = '/missing queen/active' or 'bee/nobee'
+            
+    for sample in sample_ids:
+        labels.append(fileAsdict[sample[0:-4]])  #remove .wav extension
+    
+       
+    return labels
+
+def labels2binary(pos_label, list_labels):  # pos_label = missing queen / bee
+    list_binary_labels=[]
+    for l in list_labels:
+        if l == pos_label:
+            list_binary_labels.append(1)
+        else:
+            list_binary_labels.append(0)
+    return list_binary_labels
+
+def get_beeNotBee_labels_fromLabelStrength(path_save_audio_labels, sample_ids, labels2read, minimum_label_strength) : #labels2read =  name of the label file    
+    
+    
+    labels = []
+    fileAsdict={}
+    with open(path_save_audio_labels + labels2read+'.csv', 'r') as labfile:
+        csvreader = csv.reader(labfile, delimiter=',')    
+   
+        for row in csvreader:
+            if not row[0] == 'sample_name':
+                fileAsdict[row[0]]=[row[3], row[4]]   # row[-1] = '/missing queen/active' or 'bee/nobee'
+            
+    for sample in sample_ids:
+        if (float(fileAsdict[sample[0:-4]][0])) >= minimum_label_strength: #remove .wav extension
+            labels.append('nobee')
+        else:
+            labels.append('bee')
+       
+    return labels
+
+    
+    
+
+ # SVM CLASSIFICATION:
+    
 
 
 def SVM_Classification_inSplittedSets(X_flat_train, Y_train, X_flat_test, Y_test, kerneloption='rbf'):
