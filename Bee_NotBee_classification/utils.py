@@ -447,7 +447,21 @@ def split_samples_ramdom(test_size, train_size, path_audioSegments_folder, split
     
     
 
-def split_samples_byPartOfDay(test_size, train_size, hives_data_dictionary, splitPath_save):
+def split_samples_byPartofDay(test_size, train_size, hives_data_dictionary, splitPath_save):
+    
+    #00:00 - 3:00
+    #3:00 - 6:00
+    #6:00 - 9:00
+    #9:00 - 12:00
+    #12:00 - 15:00
+    #15:00 -18:00
+    #18:00 -  21:00
+    #21:00 - 00:00
+    
+    
+    
+    
+    # TODO
     
     # creates 3 different sets 
     # input: test_size, ex: 0.1  : 10% hives for test
@@ -504,6 +518,8 @@ def split_samples_byPartOfDay(test_size, train_size, hives_data_dictionary, spli
 # FEATURE EXTRACTION FUNCTIONS
     
 def raw_feature_fromSample( path_audio_sample, feature2extract ):
+    
+    # TODO add Hilbert Transfom as raw feature as well. (for the beehive state classification)
     
     audio_sample, sr = librosa.core.load(path_audio_sample)
     
@@ -643,7 +659,7 @@ def get_GT_labels_fromFiles(path_save_audio_labels, sample_ids, labels2read) : #
        
     return labels
 
-def labels2binary(pos_label, list_labels):  # pos_label = missing queen / bee
+def labels2binary(pos_label, list_labels):  # pos_label = missing queen / nobee
     list_binary_labels=[]
     for l in list_labels:
         if l == pos_label:
