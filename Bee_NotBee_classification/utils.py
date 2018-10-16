@@ -12,7 +12,7 @@ import random
 import librosa.display
 import IPython.display as ipd
 from sklearn import preprocessing
-
+from collections import Counter
 from matplotlib import pyplot as plt
 from info import i, printb, printr, printp, print
 
@@ -76,7 +76,7 @@ def read_beeNotBee_annotations_saves_labels(audiofilename, block_name,  blockSta
                 parsed_line= line.split('\t')    
                 
                 assert (len(parsed_line)==3), ('expected 3 fields in each line, got: '+str(len(parsed_line))) 
-                #pdb.set_trace()
+                
                 
                 tp0=float(parsed_line[0])
                 tp1=float(parsed_line[1])
@@ -173,6 +173,8 @@ def load_audioFiles_saves_segments( path_audioFiles,path_save_audio_labels, bloc
     
     audiofilenames_list = [os.path.basename(x) for x in glob.glob(path_audioFiles+'*.mp3')]
     audiofilenames_list.extend([os.path.basename(x) for x in glob.glob(path_audioFiles+'*.wav')])
+    
+    printb("Number of audiofiles in folder: "+str(len(audiofilenames_list)))
     
     fi=0
     for file_name in audiofilenames_list:
@@ -296,7 +298,7 @@ def write_Statelabels_from_samplesFolder(path_save, path_samplesFolder, states=[
         
         for name in samples_names:
             label_state = read_HiveState_fromSampleName(name, states)
-            writer.writerow({'sample_name': name , 'label':label_state})
+            writer.writerow({'sample_name': name[0:-4] , 'label':label_state})
     return    
     
     
@@ -415,6 +417,81 @@ def split_samples_byHive(test_size, train_size, hives_data_dictionary, splitPath
         json.dump(splittedSamples, outfile)
     
     return splittedSamples
+    
+    
+    
+def write_sample_ids_perFILE(sample_ids, audioFile_names, savepath):
+
+    
+    
+    sampleID_perFile={}
+        
+    for sample in sample_ids:
+        for afile in audioFile_names:
+        
+            if afile in sample :
+                
+                if afile in sampleID_perFile.keys():
+                    sampleID_perFile[afile].append(sample)
+                else: 
+                    sampleID_perFile[afile]=[sample]
+                
+    
+    
+    with open(savepath+'sampleID_perFile.json', 'w') as outfile:
+        json.dump(sampleID_perFile, outfile)
+    
+    return sampleID_perFile
+    
+    
+
+def split_samples_byFILE(test_size, train_size, sampleID_perFile, splitPath_save):
+    
+    ## creates 3 different sets intended for audiofile-independent classification. meaning that (1min)samples are separated accordingly to the 10min file they come from.
+    ## input: test_size, ex: 0.1  : 10% hives for test
+    ## train_size, ex: 0.7: 70% hives for training, 30% for valisdation. (after having selected test samples!!)  
+    ## splitPath_save = path and name where to save the splitted samples id dictionary
+    
+    ## output:
+    ## returns and dumps a dictionary: {test : [sample_id1, sample_id2, ..], train : [], 'val': [sample_id2, sample_id2]}
+    
+    splittedSamples={'test': [], 'train': [], 'val':[]}
+    
+    n_audio_files = len(audiofilenames)
+             
+    files_rest1 = random.sample(audiofilenames, round(n_audio_files*(1-test_size)))
+  
+    if len(files_rest1) == len(audiofilenames):
+        rand_file = random.sample(range(len(files_rest1)),1)
+        files_rest=files_rest1[:]
+        del files_rest[rand_file[0]]
+    else:
+        
+        files_rest = files_rest1[:]
+  
+    filesTEST=np.setdiff1d(audiofilenames , files_rest)
+    filesVAL=random.sample(files_rest, round(len(files_rest)*train_size))
+    filesTRAIN=np.setdiff1d(files_rest , filesVAL)
+    
+    
+    print('files for testing: '+ str(list(filesTEST)))
+    print('files for training: '+ str(list(filesTRAIN)))
+    print('files for validation: '+ str(filesVAL))
+    
+    
+    for f in list(filesTEST):
+        splittedSamples['test'].extend(sampleID_perFile[ht])
+
+    for h1 in list(filesTRAIN):
+        splittedSamples['train'].extend(sampleID_perFile[h1])
+    
+    for h2 in list(filesVAL):
+        splittedSamples['val'].extend(sampleID_perFile[h2])
+
+    with open(splitPath_save+'.json', 'w') as outfile:
+        json.dump(splittedSamples, outfile)
+    
+    return splittedSamples
 
 
 def split_samples_ramdom(test_size, train_size, path_audioSegments_folder, splitPath_save):
@@ -519,7 +596,7 @@ def split_samples_byPartofDay(test_size, train_size, hives_data_dictionary, spli
     
 def raw_feature_fromSample( path_audio_sample, feature2extract ):
     
-    # TODO add Hilbert Transfom as raw feature as well. (for the beehive state classification)
+    # TODO add Hilbert_huang Transfom as raw feature as well. (for the beehive state classification)
     
     audio_sample, sr = librosa.core.load(path_audio_sample)
     
@@ -543,8 +620,10 @@ def raw_feature_fromSample( path_audio_sample, feature2extract ):
     return x   
 
 
-        
-        
+
+
+
+    
 def compute_statistics_overSpectogram(spectrogram):        
         
     x_diff=np.diff(spectrogram,1,0)    
@@ -605,9 +684,9 @@ def featureMap_normalization_block_level(feature_map, normalizationType='min_max
         
    
 
-def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, normalization, high_level_features ): #normalization = NO z_norm, min_max
+def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, normalization, high_level_features ): #normalization = NO, z_norm, min_max
     ## function to extract features 
-    
+    #high_level_features = 0 or 1 
     
     n_samples_set = len(sample_ids) # 4
     feature_Maps = []
@@ -641,14 +720,20 @@ def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, norma
             
         
 
-def get_GT_labels_fromFiles(path_save_audio_labels, sample_ids, labels2read) : #labels2read =  name of the label file    
-
+def get_GT_labels_fromFiles(path_labels, sample_ids, labels2read) : #labels2read =  name of the label file    
+    
+    ##reads labels files and retreives labels for a sample set given by sample_ids
+    # input:  path_labels: where label file is 
+    #         sample_ids: list of sample names that we want the label
+    #         labels2read: name of the labels file: state_labels, labels_BeeNotBee_th0 ...
+    
+    # output: list of string labels, in same order as sample_ids list
+    
     labels = []
     fileAsdict={}
-    pdb.set_trace()
-    with open(path_save_audio_labels + labels2read+'.csv', 'r') as labfile:
+    
+    with open(path_labels + labels2read+'.csv', 'r') as labfile:
         csvreader = csv.reader(labfile, delimiter=',')    
-   
         for row in csvreader:
             if not row[0] == 'sample_name':
                 fileAsdict[row[0]]=row[-1]   # row[-1] = '/missing queen/active' or 'bee/nobee'
@@ -657,7 +742,7 @@ def get_GT_labels_fromFiles(path_save_audio_labels, sample_ids, labels2read) : #
         labels.append(fileAsdict[sample[0:-4]])  #remove .wav extension
     
        
-    return labels
+    return labels  
 
 def labels2binary(pos_label, list_labels):  # pos_label = missing queen / nobee
     list_binary_labels=[]
@@ -688,17 +773,78 @@ def get_beeNotBee_labels_fromLabelStrength(path_save_audio_labels, sample_ids, l
        
     return labels
 
+def get_items2replicate(list_Binary_labels, list_sample_ids):
     
+    # get the samples to be replicated.
+    # input: list of labels and sample_ids with same oreder!
+    # ouptut: dictionary keys:name of samples to be replicated,  value: Number of times to replicate that sample.
     
+    #assert( len(list_Binary_labels) - len(list_sample_ids) == 0), ('arguments should have the same number of elements)
+    dict_items_replicate={}
+    
+    n_samples = len(list_Binary_labels)
+    n_positive_labels = sum(list_Binary_labels)
+    n_negative_labels = n_samples - n_positive_labels
+    
+    pos_samples=[]
+    neg_samples=[]
+    
+    for i in range(n_samples):
+        if list_Binary_labels[i] == 1 :
+            pos_samples.append(list_sample_ids[i])
+        else: 
+            neg_samples.append(list_sample_ids[i])
+    
+    if n_positive_labels > n_negative_labels:
+        # Replicate negative samples as needed:
+        dif=n_samples-n_negative_labels
+        items_replicate=random.choices(neg_samples, k=dif)
+ 
+    elif n_positive_labels < n_negative_labels:
+        dif=n_samples-n_positive_labels
+        items_replicate=random.choices(pos_samples, k=dif)
+              
+    dict_items_replicate=Counter(items_replicate)
+    
+    return dict_items_replicate
 
+    
+def BalanceData_online(y_set, x_set, sample_ids_set):
+    
+    ## balances already processed data (X and Y, just before classifier) by replicating samples of the least represented class.
+    # input: y_set - binary labels of set, x_set - feature_maps of set, sample_ids_set - sample names in set, ( all have the same order!)
+    # output: X, Y and sample_ids with replicated samples concatenated 
+    
+ 
+    printb( 'Balancing training data:' )
+    print('will randomly replicate samples from least represented class')
+    
+    x2concatenate = x_set
+    y2concatenate = y_set
+    sample_ids2concatenate = sample_ids_set
+    
+    
+    dict_items_replicate = get_items2replicate(y_set,sample_ids_set )
+    
+    
+    for i in range(len(sample_ids_set)):
+        if sample_ids_set[i] in dict_items_replicate.keys() :
+            
+            sample_ids2concatenate =np.concatenate([sample_ids2concatenate, [sample_ids_set[i]]*dict_items_replicate[sample_ids_set[i]]])
+            y2concatenate = np.concatenate([y2concatenate, [y_set[i]]*dict_items_replicate[sample_ids_set[i]]])
+            x2concatenate = np.concatenate([x2concatenate, [x_set[i]]*dict_items_replicate[sample_ids_set[i]]])
+            
+    return y2concatenate, x2concatenate, sample_ids2concatenate
+   
+    
+    
+    
+    
  # SVM CLASSIFICATION:
     
 
 
 def SVM_Classification_inSplittedSets(X_flat_train, Y_train, X_flat_test, Y_test, kerneloption='rbf'):
-
-
-# CHECK IF LABELS; (Y_train) MUST BE BINARY or CAN BE STRINGS!!!
 
 
     printb('Starting classification with SVM:')
@@ -725,10 +871,195 @@ def SVM_Classification_inSplittedSets(X_flat_train, Y_train, X_flat_test, Y_test
     return clf, y_pred_proba_train, y_pred_train, y_pred_proba_test, y_pred_test
       
         
+#def evaluate_SVMclassificationResults(clf, y_pred_proba_train, y_pred_train, y_pred_proba_test, y_pred_test,ExperienceParameters ):  
+
+
+
+    # printb('ExperienceParameters')
+    # print('AccuracyTRAIN')
+    # print('AUC_TRAIN', print('gtBEEpBEE_TRAIN', print('gtNOTBEEpBEE_TRAIN', 'gtBEEpNOTBEE_TRAIN', 'gtNOTBEEpNOTBEE_TRAIN','ShannonEnthropy_TRAIN','AccuracyTEST', 'AUC_TEST','ConfusionMatrixTEST_gtBEEpBEE_gtNOTBEEpBEE_gtBEEpNOTBEE_gtNOTBEEpNOTBEE', 'PrecisionTEST_on_NOTBEE', 'RecallTEST_on_NOTBEE', 'PrecisionTEST_on_BEE', 'RecallTEST_on_BEE', 'gtBEEpBEE_TEST', 'gtNOTBEEpBEE_TEST', 'gtBEEpNOTBEE_TEST', 'gtNOTBEEpNOTBEE_TEST', 'ShannonEnthropyTEST','accuracyTEST_on_balancedDatasets')
+    
+
+
+      
+# def Report_ClassificationResults(summary_filename, path_results, thresholds, Train_Preds, Train_GroundT, Test_Preds, Test_GroundT, CLFs, classification_idSTRING, testFilenames,  chunk_size, global_dict_results_per_case_30,global_dict_results_per_case_60,save='yes'):
+
+
+# clf, y_pred_proba_train, y_pred_train, y_pred_proba_test, y_pred_test
+    
+
+    # if not os.path.isfile(summary_filename):
+        # with open(summary_filename, 'w') as csvfile:
+            # wtr = csv.writer(csvfile, delimiter=',')
+            # wtr.writerow(['ExperienceParameters', 'AccuracyTRAIN', 'AUC_TRAIN', 'gtBEEpBEE_TRAIN', 'gtNOTBEEpBEE_TRAIN', 'gtBEEpNOTBEE_TRAIN', 'gtNOTBEEpNOTBEE_TRAIN','ShannonEnthropy_TRAIN','AccuracyTEST', 'AUC_TEST','ConfusionMatrixTEST_gtBEEpBEE_gtNOTBEEpBEE_gtBEEpNOTBEE_gtNOTBEEpNOTBEE', 'PrecisionTEST_on_NOTBEE', 'RecallTEST_on_NOTBEE', 'PrecisionTEST_on_BEE', 'RecallTEST_on_BEE', 'gtBEEpBEE_TEST', 'gtNOTBEEpBEE_TEST', 'gtBEEpNOTBEE_TEST', 'gtNOTBEEpNOTBEE_TEST', 'ShannonEnthropyTEST','accuracyTEST_on_balancedDatasets'])
+    
+        # csvfile.close()
+    # # transform labels into bolean type for easyness
+    # PRED=[]
+    # PRED_TRAIN=[]
+    # GT=[]
+    # GT_TRAIN=[]
+    # for i in range(len(thresholds)):
+        # PRED.append(labels2binary(np.asarray(Test_Preds[i]), 'NotBee'))
+        # GT.append(labels2binary(np.asarray(Test_GroundT[i]), 'NotBee'))                  
+        # PRED_TRAIN.append(labels2binary(np.asarray(Train_Preds[i]), 'NotBee'))
+        # GT_TRAIN.append(labels2binary(np.asarray(Train_GroundT[i]), 'NotBee'))
+    
+    # #Evaluate classifier:
+    # for i in range(len(thresholds)):                   
+        # printb('classification results for threshold of '+ str(thresholds[i])+ 'sec')
+        # print("Classification report for classifier %s:\n%s\n"
+          # % (CLFs[i], metrics.classification_report(GT[i], PRED[i])))
+        # print("Confusion matrix:\n%s" % metrics.confusion_matrix(GT[i], PRED[i]))
+        # print('\n')
+        
+    # # Save classification results:
+
+    # if save == 'yes':
         
         
+        # with open(path_results+classification_idSTRING+'.csv', 'w') as csvfile:
+            # wtr = csv.writer(csvfile, delimiter=';')
+            # for i in range(len(thresholds)): 
+
+                         
+                # wtr.writerow( ['classification results for threshold of ', thresholds[i], 'sec'])
+                # wtr.writerow( ["Classification report for classifier %s:\n%s\n"
+                  # % (CLFs[i], metrics.classification_report(GT[i], PRED[i]))])
+                # wtr.writerow( ["Confusion matrix:\n%s" % metrics.confusion_matrix(GT[i], PRED[i])])
+                # wtr.writerow( [" Accuracy: \n%s" % metrics.accuracy_score(GT[i], PRED[i])])
+                # wtr.writerow( [" Area under Curve: \n%s" % metrics.roc_auc_score(GT[i], Test_Preds[i], average='macro', sample_weight=None)])
+                # wtr.writerow( ["Predictions: \n"])
+                # for p in range(len(PRED[i])):
+                    # wtr. writerow([testFilenames[p] +'    GT: ' +str(GT[i][p])+ '   PRED: '+ str(PRED[i][p])])
+                    
+                    
+                    # #update dictionary of case per case results
+                    # correct=0
+                    # if GT[i][p]-PRED[i][p] == 0:
+                        # correct=1
+                    # 
+                    # update_results_case_dict(global_dict_results_per_case_30,global_dict_results_per_case_60, chunk_size, testFilenames[p], correct)
+
+                    
+                    
+                    
+                
+    # # append results to summary file:  
+    # with open(summary_filename, 'a') as summaryFile:
+        # writer=csv.writer(summaryFile, delimiter=',')
+        # for i in range(len(thresholds)):
         
+            # #compute parameters to show:
+            # accuracy=metrics.accuracy_score(GT[i], PRED[i])
+            # AccuracyTRAIN=metrics.accuracy_score(GT_TRAIN[i], PRED_TRAIN[i])
+            # try: 
+                # gtBEEpBEE, gtNOTBEEpBEE, gtBEEpNOTBEE, gtNOTBEEpNOTBEE=metrics.confusion_matrix(GT[i], PRED[i]).ravel()
+            # except ValueError as e:
+                # if sum(PRED[i])==len(PRED[i]) and sum(GT[i])==len(PRED[i]) :
+                    # gtBEEpBEE=0 
+                    # gtNOTBEEpBEE=0
+                    # gtBEEpNOTBEE=0
+                    # gtNOTBEEpNOTBEE =len(PRED[i])
+                
+                # elif sum(PRED[i])==0 and sum(GT[i])==0 :
+                    # gtBEEpBEE=len(PRED[i])
+                    # gtNOTBEEpBEE=0
+                    # gtBEEpNOTBEE=0
+                    # gtNOTBEEpNOTBEE =0
+                
+                # elif sum(PRED[i])==len(PRED[i]) and sum(GT[i])==0 :
+                    # gtBEEpBEE=0
+                    # gtNOTBEEpBEE=0
+                    # gtBEEpNOTBEE=len(PRED[i])
+                    # gtNOTBEEpNOTBEE =0
+                    
+                # elif sum(PRED[i])==0 and sum(GT[i])==len(GT[i]) :
+                    # gtBEEpBEE=0
+                    # gtNOTBEEpBEE=len(PRED[i])
+                    # gtBEEpNOTBEE=0
+                    # gtNOTBEEpNOTBEE =0
+                    
+                    
+                    
+            # try: 
+                # gtBEEpBEE_TRAIN, gtNOTBEEpBEE_TRAIN, gtBEEpNOTBEE_TRAIN, gtNOTBEEpNOTBEE_TRAIN=metrics.confusion_matrix(GT_TRAIN[i], PRED_TRAIN[i]).ravel()
+            # except ValueError as e:
+                # if sum(PRED_TRAIN[i])==len(PRED_TRAIN[i]) and sum(GT_TRAIN[i])==len(PRED_TRAIN[i]) :
+                    # gtBEEpBEE_TRAIN=0 
+                    # gtNOTBEEpBEE_TRAIN=0
+                    # gtBEEpNOTBEE_TRAIN=0
+                    # gtNOTBEEpNOTBEE_TRAIN =len(PRED[i])
+                
+                # elif sum(PRED_TRAIN[i])==0 and sum(GT_TRAIN[i])==0 :
+                    # gtBEEpBEE_TRAIN=len(PRED_TRAIN[i])
+                    # gtNOTBEEpBEE_TRAIN=0
+                    # gtBEEpNOTBEE_TRAIN=0
+                    # gtNOTBEEpNOTBEE_TRAIN =0
+                
+                # elif sum(PRED_TRAIN[i])==len(PRED_TRAIN[i]) and sum(GT_TRAIN[i])==0 :
+                    # gtBEEpBEE_TRAIN=0
+                    # gtNOTBEEpBEE_TRAIN=0
+                    # gtBEEpNOTBEE_TRAIN=len(PRED_TRAIN[i])
+                    # gtNOTBEEpNOTBEE_TRAIN =0
+                    
+                # elif sum(PRED_TRAIN[i])==0 and sum(GT_TRAIN[i])==len(GT_TRAIN[i]) :
+                    # gtBEEpBEE_TRAIN=0
+                    # gtNOTBEEpBEE_TRAIN=len(PRED_TRAIN[i])
+                    # gtBEEpNOTBEE_TRAIN=0
+                    # gtNOTBEEpNOTBEE_TRAIN =0  
+                    
+            # try:
+                # ShannonEnthropy_TRAIN=-(((gtBEEpBEE_TRAIN+gtBEEpNOTBEE_TRAIN)/(gtBEEpBEE_TRAIN+gtNOTBEEpBEE_TRAIN+gtBEEpNOTBEE_TRAIN+gtNOTBEEpNOTBEE_TRAIN) )*log(((gtBEEpBEE_TRAIN+gtBEEpNOTBEE_TRAIN)/(gtBEEpBEE_TRAIN+gtNOTBEEpBEE_TRAIN+gtBEEpNOTBEE_TRAIN+gtNOTBEEpNOTBEE_TRAIN) ))  +    ((gtNOTBEEpBEE_TRAIN+gtNOTBEEpNOTBEE_TRAIN)/(gtBEEpBEE_TRAIN+gtNOTBEEpBEE_TRAIN+gtBEEpNOTBEE_TRAIN+gtNOTBEEpNOTBEE_TRAIN) )*log(((gtNOTBEEpBEE_TRAIN+gtNOTBEEpNOTBEE_TRAIN)/(gtBEEpBEE_TRAIN+gtNOTBEEpBEE_TRAIN+gtBEEpNOTBEE_TRAIN+gtNOTBEEpNOTBEE_TRAIN) )))
+            # except Exception as e :
+                # ShannonEnthropy_TRAIN=0
+                    
+            # try:
+                # Precision_on_NOTBEE=gtNOTBEEpNOTBEE/(gtNOTBEEpNOTBEE+gtBEEpNOTBEE)
+            # except ZeroDivisionError as e:
+                # Precision_on_NOTBEE=0
+            # try:
+                # Recall_on_NOTBEE=gtNOTBEEpNOTBEE/(gtNOTBEEpNOTBEE+gtNOTBEEpBEE)
+            # except ZeroDivisionError as e:
+                # Recall_on_NOTBEE=0
+            # try:
+                # Precision_on_BEE=gtBEEpBEE/(gtBEEpBEE+gtNOTBEEpBEE)
+            # except ZeroDivisionError as e:
+                # Precision_on_BEE=0
+            # try:
+                # Recall_on_BEE=gtBEEpBEE/(gtBEEpBEE+gtBEEpNOTBEE)        
+            # except ZeroDivisionError as e:
+                # Recall_on_BEE=0
+                
+            # try:
+                # ShannonEnthropy=-(((gtBEEpBEE+gtBEEpNOTBEE)/(gtBEEpBEE+gtNOTBEEpBEE+gtBEEpNOTBEE+gtNOTBEEpNOTBEE) )*log(((gtBEEpBEE+gtBEEpNOTBEE)/(gtBEEpBEE+gtNOTBEEpBEE+gtBEEpNOTBEE+gtNOTBEEpNOTBEE) ))  +    ((gtNOTBEEpBEE+gtNOTBEEpNOTBEE)/(gtBEEpBEE+gtNOTBEEpBEE+gtBEEpNOTBEE+gtNOTBEEpNOTBEE) )*log(((gtNOTBEEpBEE+gtNOTBEEpNOTBEE)/(gtBEEpBEE+gtNOTBEEpBEE+gtBEEpNOTBEE+gtNOTBEEpNOTBEE) )))
+            # except Exception as e :
+                # ShannonEnthropy=0
+                
+            # if ShannonEnthropy>0.9:
+                # accuracy_on_balancedDatasets=accuracy
+            # else: 
+                # accuracy_on_balancedDatasets=0
+            
+            # try:
+                # AUC_TRAIN=metrics.roc_auc_score(GT_TRAIN[i], Train_Preds[i], average='macro', sample_weight=None)
+            # except Exception as e:
+                # AUC_TRAIN='error'
+
+            # try: 
+                # AUC_TEST=metrics.roc_auc_score(GT[i], Test_Preds[i], average='macro', sample_weight=None)
+                
+            # except Exception as e:
+                # AUC_TEST='error'
+                
+                
+            # #writer.writerow([classification_idSTRING+'__Th'+str(thresholds[i]), metrics.accuracy_score(GT[i], PRED[i]), metrics.confusion_matrix(GT[i], PRED[i]),metrics.precision_score(GT[i], PRED[i]) , metrics.recall_score(GT[i], PRED[i])])
+            # writer.writerow([classification_idSTRING+'__Th'+str(thresholds[i]), AccuracyTRAIN, AUC_TRAIN, gtBEEpBEE_TRAIN, gtNOTBEEpBEE_TRAIN, gtBEEpNOTBEE_TRAIN, gtNOTBEEpNOTBEE_TRAIN , ShannonEnthropy_TRAIN, accuracy , AUC_TEST ,metrics.confusion_matrix(GT[i], PRED[i]),Precision_on_NOTBEE , Recall_on_NOTBEE, Precision_on_BEE, Recall_on_BEE, gtBEEpBEE, gtNOTBEEpBEE, gtBEEpNOTBEE,gtNOTBEEpNOTBEE, ShannonEnthropy,accuracy_on_balancedDatasets ])
+           # # ['ExperienceParameters', 'AccuracyTRAIN', 'AUC_TRAIN', 'gtBEEpBEE_TRAIN', 'gtNOTBEEpBEE_TRAIN', 'gtBEEpNOTBEE_TRAIN', 'gtNOTBEEpNOTBEE_TRAIN','AccuracyTEST', 'AUC_TEST','ConfusionMatrixTEST_gtBEEpBEE_gtNOTBEEpBEE_gtBEEpNOTBEE_gtNOTBEEpNOTBEE', 'PrecisionTEST_on_NOTBEE', 'RecallTEST_on_NOTBEE', 'PrecisionTEST_on_BEE', 'RecallTEST_on_BEE', 'gtBEEpBEE_TEST', 'gtNOTBEEpBEE_TEST', 'gtBEEpNOTBEE_TEST', 'gtNOTBEEpNOTBEE_TEST', 'ShannonEnthropyTEST','accuracyTEST_on_balancedDatasets'])
+            
         
+# CNN classifier
+
         
 # EVALUATE RESULTS AND PLOT FUNCTIONS        
 
