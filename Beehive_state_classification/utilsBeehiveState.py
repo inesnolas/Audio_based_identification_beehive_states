@@ -238,10 +238,44 @@ def report_SVM_beehiveState_results(summary_filename, path_results, thresholds, 
         writer.writerow([classification_idSTRING, AccuracyTRAIN, AUC_TRAIN, gtACTIVEpACTIVE_TRAIN, gtMQUEENpACTIVE_TRAIN, gtACTIVEpMQUEEN_TRAIN, gtMQUEENpMQUEEN_TRAIN , ShannonEnthropy_TRAIN, accuracy , AUC_TEST ,metrics.confusion_matrix(GT, PRED_TEST),Precision_on_MQUEEN , Recall_on_MQUEEN, Precision_on_ACTIVE, Recall_on_ACTIVE, gtACTIVEpACTIVE, gtMQUEENpACTIVE, gtACTIVEpMQUEEN,gtMQUEENpMQUEEN, ShannonEnthropy,accuracy_on_balancedDatasets])
         
 
+     
+
+
+
+def extract_long_term_features_fromMEL(Mel_spectrograms, n_slices):
+
+    #n_slices must result in an equal division. so:
+    # total_frames=Mel_spectrograms[0].shape[-1] # total number of frames
+    # slice_size = total_frames//n_slices
+    # corrected_n_slices = total_frames / int(slice_size)
+    
+    long_term_features = []
+    
+    for sample in Mel_spectrograms:
+        print(sample.shape)
+        sliced_sample = np.array_split(sample, n_slices, 1 )
+        print(len(sliced_sample))
+        print(sliced_sample[0].shape)
+        stacked_averaged_slices = []
+        for i in range(len(sliced_sample)):
+                       
+            stacked_averaged_slices.append(np.mean(sliced_sample[i],1))
+            print(stacked_averaged_slices[i].shape)
+            #pdb.set_trace()
+            print(len(stacked_averaged_slices))
+        long_term_features.append(stacked_averaged_slices)    
+            
+    print(len(long_term_features))
+    print(len(long_term_features[0]))
+    
+    print(long_term_features[0][0].shape)
+    return long_term_features
+    
         
+     
 #TODO:        
         
-# make classification at audio-file level (total 10 min ---> concatenating averages of 1 min slices, as BIZOT's paper.)        
+# make classification at audio-file level (total 1 min ---> concatenating averages of 2s min slices, as BIZOT's paper.)        
 #def 
       
 
