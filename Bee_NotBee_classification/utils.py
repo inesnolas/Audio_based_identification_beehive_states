@@ -15,6 +15,12 @@ from sklearn import preprocessing
 from collections import Counter
 from matplotlib import pyplot as plt
 from info import i, printb, printr, printp, print
+import muda
+import jams
+
+
+
+
 
 
 
@@ -168,11 +174,11 @@ def uniform_block_size(undersized_block, block_size_samples, method='repeat' ):
 
      
 
-def load_audioFiles_saves_segments( path_audioFiles,path_save_audio_labels, block_size , thresholds, annotations_path, read_beeNotBee_annotations ='yes', save_audioSegments='yes'):
+def load_audioFiles_saves_segments( audiofilenames_list, path_audioFiles,path_save_audio_labels, block_size , thresholds, annotations_path, read_beeNotBee_annotations ='yes', save_audioSegments='yes'):
 
     
-    audiofilenames_list = [os.path.basename(x) for x in glob.glob(path_audioFiles+'*.mp3')]
-    audiofilenames_list.extend([os.path.basename(x) for x in glob.glob(path_audioFiles+'*.wav')])
+    # audiofilenames_list = [os.path.basename(x) for x in glob.glob(path_audioFiles+'*.mp3')]
+    # audiofilenames_list.extend([os.path.basename(x) for x in glob.glob(path_audioFiles+'*.wav')])
     
     printb("Number of audiofiles in folder: "+str(len(audiofilenames_list)))
     
@@ -284,11 +290,11 @@ def write_Statelabels_from_beeNotBeelabels(path_save, path_labels_BeeNotBee, sta
 
     
     
-def write_Statelabels_from_samplesFolder(path_save, path_samplesFolder, states=['active','missing queen','swarm' ]):
+def write_Statelabels_from_samplesFolder(path_save, path_samplesFolder, extension='.wav', states=['active','missing queen','swarm' ]):
     
     label_file_exists = os.path.isfile(path_save+'state_labels.csv')
     
-    samples_names = get_list_samples_names(path_samplesFolder)
+    samples_names = get_list_samples_names(path_samplesFolder, extension)
     with open(path_save+'state_labels.csv', 'a', newline='') as f_out:
         
         writer= csv.DictWriter(f_out, fieldnames=['sample_name', 'label'], delimiter=',') 
@@ -302,8 +308,8 @@ def write_Statelabels_from_samplesFolder(path_save, path_samplesFolder, states=[
     return    
     
     
-def get_list_samples_names(path_audioSegments_folder):
-    sample_ids=[os.path.basename(x) for x in glob.glob(path_audioSegments_folder+'*.wav')]
+def get_list_samples_names(path_audioSegments_folder, extension='.wav'):
+    sample_ids=[os.path.basename(x) for x in glob.glob(path_audioSegments_folder+'*'+extension)]
     return sample_ids
     
 
@@ -326,15 +332,26 @@ def write_sample_ids_perHive(sample_ids , savepath):
     uniqueHivesNames={}
     pat1=re.compile("(\w+\d)\s-\s")
     pat2=re.compile("^(Hive\d)_")
+    pat3=re.compile("^(Hive\d)\s")
     for sample in sample_ids:
 
         match_pat1=pat1.match(sample)
         match_pat2=pat2.match(sample)
+        match_pat3=pat3.match(sample)
+        
         if match_pat1:
             if match_pat1.group(1) in uniqueHivesNames.keys():
                 uniqueHivesNames[match_pat1.group(1)].append(sample)
             else: 
                 uniqueHivesNames[match_pat1.group(1)]=[sample]
+        
+        
+        elif match_pat3:
+            if match_pat3.group(1) in uniqueHivesNames.keys():
+                uniqueHivesNames[match_pat3.group(1)].append(sample)
+            else: 
+                uniqueHivesNames[match_pat3.group(1)]=[sample]
+              
         elif match_pat2:
             if match_pat2.group(1) in uniqueHivesNames.keys():
                 uniqueHivesNames[match_pat2.group(1)].append(sample)
@@ -364,7 +381,91 @@ def get_uniqueHives_names_from_File(path_file_samplesId_perHive):
     
     return hives_data
    
+def split_samples_byHive_CNN(test_size, train_size, hives_data_dictionary, splitPath_save):
+    
+    ## creates 3 different sets intended for hive-independent classification. meaning that samples are separated accordingly to the hive.
+    ## input: test_size, ex: 0.1  : 10% hives for test
+    ## train_size, ex: 0.7: 70% hives for training, 30% for valisdation. (after having selected test samples!!)  
+    ## splitPath_save = path and name where to save the splitted samples id dictionary
+    
+    ## output:
+    ## returns and dumps a dictionary: {test : [sample_id1, sample_id2, ..], train : [], 'val': [sample_id2, sample_id2]}
+    
+    splittedSamples={'test': [], 'train': [], 'val':[]}
 
+    n_hives = len(hives_data_dictionary.keys())
+        
+    hives_list=list(hives_data_dictionary.keys())
+    
+    hives_rest1=random.sample(hives_list, round(n_hives*(1-test_size)))
+    
+    if len(hives_rest1) == len(hives_list):
+        rand_hive = random.sample(range(len(hives_rest1)),1)
+        hives_rest=hives_rest1[:]
+        del hives_rest[rand_hive[0]]
+    else:
+        
+        hives_rest = hives_rest1[:]
+  
+    hiveTEST=np.setdiff1d(hives_list , hives_rest)
+    hiveVAL=random.sample(hives_rest, round(len(hives_rest)*train_size))
+    hiveTRAIN=np.setdiff1d(hives_rest , hiveVAL)
+    
+    
+    # print('hives for testing: '+ str(list(hiveTEST)))
+    # print('hives for training: '+ str(list(hiveTRAIN)))
+    # print('hives for validation: '+ str(hiveVAL))
+    
+    
+    for h1 in list(hiveTEST):
+        splittedSamples['test'].extend(hives_data_dictionary[h1])
+        
+    # if n_hives < 3 : #val set will end empty, split test in two 
+    
+        # samples_in_test=[]
+        # for ht in list(hiveTEST):
+            # samples_in_test.extend(hives_data_dictionary[ht])
+        # samples_test= random.sample(samples_in_test, round(len(samples_in_test)/2))
+        # samples_val = np.setdiff1d(samples_in_test, samples_test)
+        
+        
+        # for s in samples_test:
+            # splittedSamples['test'].append(s)
+            
+        # for s in samples_val:
+            # splittedSamples['val'].append(s)        
+    
+    
+    if n_hives < 3 : #val set will end empty, get 10% from train set 
+    
+        samples_in_train=[]
+        for ht in list(hiveTRAIN):
+            samples_in_train.extend(hives_data_dictionary[ht])
+        samples_val= random.sample(samples_in_train, round(len(samples_in_train)*0.1)+1)
+        samples_train = np.setdiff1d(samples_in_train, samples_val)
+        
+        
+        for s in samples_train:
+            splittedSamples['train'].append(s)
+            
+        for s in samples_val:
+            splittedSamples['val'].append(s)        
+
+    
+    else:
+        
+        for ht in list(hiveTEST):
+            splittedSamples['test'].extend(hives_data_dictionary[ht])
+
+      
+        for h2 in hiveVAL:
+            splittedSamples['val'].extend(hives_data_dictionary[h2])
+
+    with open(splitPath_save+'.json', 'w') as outfile:
+        json.dump(splittedSamples, outfile)
+        
+    return splittedSamples
+    
     
 def split_samples_byHive(test_size, train_size, hives_data_dictionary, splitPath_save):
     
@@ -379,11 +480,9 @@ def split_samples_byHive(test_size, train_size, hives_data_dictionary, splitPath
     splittedSamples={'test': [], 'train': [], 'val':[]}
     
     n_hives = len(hives_data_dictionary.keys())
-            
+    
     hives_list=list(hives_data_dictionary.keys())
-    
-    
-    
+        
     hives_rest1=random.sample(hives_list, round(n_hives*(1-test_size)))
     
     if len(hives_rest1) == len(hives_list):
@@ -419,6 +518,43 @@ def split_samples_byHive(test_size, train_size, hives_data_dictionary, splitPath
     return splittedSamples
     
     
+def get_days_from_sampleIds(sample_ids_same_hive):    
+    # Hive1 31_05_2018_NO_QueenBee____01_30_00.wav
+    # Hive1 12_06_2018_QueenBee____16_10_00.wav    
+    # Hive3_28_07_2017_QueenBee____23_50_00.wav
+    list_days_sampleIds={}
+    
+    for s in sample_ids_same_hive:
+        if s[6:16] in list_days_sampleIds.keys():
+            list_days_sampleIds[s[6:16]].append(s)
+        else:
+            list_days_sampleIds[s[6:16]] = [s]
+    
+    return list_days_sampleIds
+    
+    
+def write_sample_ids_perdayAndHive(path_file_samplesId_perHive, savepath):
+
+
+    hives_data = get_uniqueHives_names_from_File(path_file_samplesId_perHive)
+    
+    
+    sampleID_perDayandHIve={}
+    
+    
+    for h in hives_data.keys():
+        sampleID_perDayandHIve[h] = {}
+        sample_ids_same_hive = hives_data[h]
+        list_days_sampleIds= get_days_from_sampleIds(sample_ids_same_hive)
+        
+        for day in list_days_sampleIds.keys():
+            sampleID_perDayandHIve[h][day] = list_days_sampleIds[day]
+        
+    with open(savepath+'sampleID_perDayandHive.json', 'w') as outfile:
+        json.dump(sampleID_perDayandHIve, outfile)
+    
+    return sampleID_perDayandHIve    
+    
     
 def write_sample_ids_perFILE(sample_ids, audioFile_names, savepath):
 
@@ -442,6 +578,9 @@ def write_sample_ids_perFILE(sample_ids, audioFile_names, savepath):
         json.dump(sampleID_perFile, outfile)
     
     return sampleID_perFile
+    
+    
+    
     
     
 
@@ -494,12 +633,12 @@ def split_samples_byFILE(test_size, train_size, sampleID_perFile, splitPath_save
     return splittedSamples
 
 
-def split_samples_ramdom(test_size, train_size, path_audioSegments_folder, splitPath_save):
+def split_samples_ramdom(test_size, train_size, path_audioSegments_folder, splitPath_save, extension ='.wav'):
 
     
     splittedSamples = {'test': [], 'train': [], 'val':[]}
     
-    list_samples_id = get_list_samples_names(path_audioSegments_folder)
+    list_samples_id = get_list_samples_names(path_audioSegments_folder, extension)
     n_segments = len(list_samples_id)
     samplesTEST=random.sample(list_samples_id, round(n_segments*test_size))
     samples_rest=np.setdiff1d(list_samples_id , samplesTEST)
@@ -595,9 +734,7 @@ def split_samples_byPartofDay(test_size, train_size, hives_data_dictionary, spli
 # FEATURE EXTRACTION FUNCTIONS
     
 def raw_feature_fromSample( path_audio_sample, feature2extract ):
-    
-    # TODO add Hilbert_huang Transfom as raw feature as well. (for the beehive state classification)
-    
+        
     audio_sample, sr = librosa.core.load(path_audio_sample)
     
     m = re.match(r"\w+s(\d+)", feature2extract)
@@ -619,9 +756,75 @@ def raw_feature_fromSample( path_audio_sample, feature2extract ):
 
     return x   
 
+def raw_feature_fromSample_withAUGMENTATION( sample_name, path_audio_sample, list_features ,augmentingFactor):
+    
+  
+    audio_sample_or, sr = librosa.core.load(path_audio_sample + sample_name)
+    # list_audio_samples = [audio_sample_or]
+    spectrogram_original =[]
+    
+    dict_augmented_wav_feature = {}
+    
 
+    pitch = muda.deformers.LinearPitchShift(n_samples=augmentingFactor, lower=-1, upper=1) 
+    jam=jams.JAMS()
+    j_orig = muda.jam_pack(jam, _audio=dict(y=audio_sample_or, sr=sr))
+    
+    for i, jam_out in enumerate(pitch.transform(j_orig)):
+        y = jam_out.sandbox.muda._audio['y']
+        sr = jam_out.sandbox.muda._audio['sr']
 
-
+        #list_audio_samples.append(y)  #list with original_audio plus every modified version of the same audio
+        dict_augmented_wav_feature[sample_name[0:-4]+'_AG'+str(i)]=[y]
+                
+    # Extract features for the set of samples: original and  augmented...
+    for feature2extract in list_features:
+        m = re.match(r"\w+s(\d+)", feature2extract)
+        n_freqs=int(m.groups()[0])
+        
+        
+        # EXTRACT FOR ORIGINAL SAMPLE:
+        Melspec = librosa.feature.melspectrogram(audio_sample_or, n_mels = n_freqs) # computes mel spectrograms from audio sample, 
+        
+        if 'LOG' in feature2extract: #'LOG_MELfrequencies48'
+            Melspec=librosa.feature.melspectrogram(audio_sample_or, sr=sr, n_mels=n_freqs)
+            x=librosa.power_to_db(Melspec+1)
+            
+        elif 'MFCCs' in feature2extract:
+            n_freqs = int(feature2extract[5:len(feature2extract)])
+            Melspec = librosa.feature.melspectrogram(audio_sample_or, sr=sr)
+            x = librosa.feature.mfcc(S=librosa.power_to_db(Melspec),sr=sr, n_mfcc = n_freqs)
+            
+        else:
+            x = Melspec
+        spectrogram_original.append(x)   # append each feature!     
+        
+        
+        # EXTRACT FOR SET OF AUGMENTED SAMPLES:
+                
+        for aug_audio_sample_name in dict_augmented_wav_feature.keys():
+        
+        
+            Melspec = librosa.feature.melspectrogram(dict_augmented_wav_feature[aug_audio_sample_name][0], n_mels = n_freqs) # computes mel spectrograms from audio sample, 
+        
+            if 'LOG' in feature2extract: #'LOG_MELfrequencies48'
+                Melspec=librosa.feature.melspectrogram(dict_augmented_wav_feature[aug_audio_sample_name][0], sr=sr, n_mels=n_freqs)
+                x=librosa.power_to_db(Melspec+1)
+                
+            elif 'MFCCs' in feature2extract:
+                n_freqs = int(feature2extract[5:len(feature2extract)])
+                Melspec = librosa.feature.melspectrogram(dict_augmented_wav_feature[aug_audio_sample_name][0], sr=sr)
+                x = librosa.feature.mfcc(S=librosa.power_to_db(Melspec),sr=sr, n_mfcc = n_freqs)
+                
+            else:
+                x = Melspec
+        
+            dict_augmented_wav_feature[aug_audio_sample_name].append(x)    #dict; {sample_name_AG1 : [y,spectrogram], sample_name_AG2 : [y,spectrogram]}
+            
+    
+    
+    return dict_augmented_wav_feature, spectrogram_original    
+ 
 
     
 def compute_statistics_overSpectogram(spectrogram):        
@@ -654,7 +857,7 @@ def compute_statistics_overMFCCs(MFCC, first='yes'):
 
     
   
-def get_samples_id_perSet(pathSplitFile):
+def get_samples_id_perSet(pathSplitFile):  # reads split_id file
 
    
     split_dict=json.load(open (pathSplitFile, 'r'))
@@ -697,10 +900,10 @@ def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, norma
         x = raw_feature_fromSample( path_audio_samples+sample, raw_feature ) # x.shape: (4, 20, 2584)
         
         
-        #normalization here:
-        if not normalization == 'NO':
-            x_norm = featureMap_normalization_block_level(x, normalizationType = normalization) 
-        else: x_norm = x
+        ##normalization here:
+        # if not normalization == 'NO':
+            # x_norm = featureMap_normalization_block_level(x, normalizationType = normalization) 
+        # else: x_norm = x
         
         if high_level_features:
             # high level feature extraction:
@@ -718,7 +921,49 @@ def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, norma
         
     return feature_Maps
             
+# def get_features_from_samples_withAUGMENTATION(path_audio_samples, sample_ids, raw_feature, normalization, high_level_features augmentingfactor): #normalization = NO, z_norm, min_max
+    # ## function to extract features 
+    # #high_level_features = 0 or 1 
+    # #augmentingfactor = 0 won't do any augmentation
+    
+    
+    
+    # n_samples_set = len(sample_ids) # 4
+    # feature_Maps = []
+    
+    # for sample in sample_ids:
         
+        # # raw feature extraction:
+        # x, list_x_augm = raw_feature_fromSample_withAUGMENTATION( path_audio_samples+sample, raw_feature , augmentingfactor ) # x.shape: (4, 20, 2584)
+        
+        # #for x in list_x :
+        
+        # #normalization here:
+        # if not normalization == 'NO':
+            # x_norm = featureMap_normalization_block_level(x, normalizationType = normalization) 
+        # else: x_norm = x
+        
+        # if high_level_features:
+            # # high level feature extraction:
+            # if 'MFCCs' in raw_feature:
+                # X = compute_statistics_overMFCCs(x_norm, 'yes') # X.shape: (4 , 120)
+            # else: 
+                # X = compute_statistics_overSpectogram(x_norm)
+                
+            # feature_map=X
+        # else:
+            # feature_map=x_norm
+        
+        
+        # feature_Maps_original.append(feature_map)
+        
+        # feature_maps_augmented=[]
+        # ##### 
+        # # HERE FINISH THIS THIS THIS HERE HERE HERE!!!!!!!!
+        
+    # return feature_Maps
+
+    
 
 def get_GT_labels_fromFiles(path_labels, sample_ids, labels2read) : #labels2read =  name of the label file    
     
@@ -797,11 +1042,11 @@ def get_items2replicate(list_Binary_labels, list_sample_ids):
     
     if n_positive_labels > n_negative_labels:
         # Replicate negative samples as needed:
-        dif=n_samples-n_negative_labels
+        dif=n_positive_labels-n_negative_labels
         items_replicate=random.choices(neg_samples, k=dif)
  
     elif n_positive_labels < n_negative_labels:
-        dif=n_samples-n_positive_labels
+        dif=n_negative_labels-n_positive_labels
         items_replicate=random.choices(pos_samples, k=dif)
               
     dict_items_replicate=Counter(items_replicate)
