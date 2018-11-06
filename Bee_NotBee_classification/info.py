@@ -2,20 +2,28 @@ import numpy as np
 import sys
 
 ### For prints with timetag in front ###
+
 from datetime import datetime
 def timestr():
     return '[' + datetime.now().strftime('%Y-%m-%dT%H:%M:%S') + ']'
 
+import os
+import psutil
+def timeRAMstr():
+    pid = os.getpid()
+    py = psutil.Process(pid)
+    return '[' + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' RAM' + str(psutil.virtual_memory().percent) + '% ' + str( round(py.memory_info().rss/1024/1024/1024, 2)) + 'GB]'
+
 def my_decorator(func):
     def wrapped_func(*args,**kwargs):
-        return func(timestr(),*args,**kwargs)
+        return func(timeRAMstr(),*args,**kwargs)
     return wrapped_func
 
 print = my_decorator(print)
-########################################
 
 
-### For colors #########################
+### For colors ###
+
 if sys.platform == 'win32' or sys.platform == 'win64':
     import colorama # makes colors work in windows terminal
     colorama.init()
@@ -42,8 +50,7 @@ def printp(toprint):
     print(color.PURPLE + toprint + color.END)
 
 
-### Info function #######################
-# For quick inspection of the data
+### Info function ###
 
 def i(variable):
     if type(variable) is np.ndarray and variable.size > 1:
@@ -51,8 +58,12 @@ def i(variable):
         while type(element) is np.ndarray:
             element = element[0]
         toprintelement = str(type(element))
+        #toprintarray = "   " + str(variable.size)
     else:
         toprintelement = "N/A"
+
+    #if type(variable) is dict:
+        #toprintdict = str(len(variable))
     
     toprintstr = str(type(variable))
     if type(variable) is tuple:
@@ -79,4 +90,16 @@ def i(variable):
     except (AttributeError):
         toprintstr = toprintstr + "   N/A" 
     print(toprintstr)
+    #return toprintstr
+    
+# Test function
+#rab=2
+#i(rab)
 
+##def happyBirthdayEmily():
+    #print("Happy Birthday to you!")
+    #print("Happy Birthday to you!")
+    #print("Happy Birthday, dear Emily.")
+    #print("Happy Birthday to you!")
+
+#happyBirthdayEmily()
