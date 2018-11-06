@@ -42,4 +42,6 @@ Classification:
 This project is licensed under the GPL License - see the [LICENSE.md](LICENSE.md) file for details
 
 
-[1] I. Nolasco and E. Benetos, “To bee or not to bee: Investigating machine learning approaches to beehive sound recognition,” in Workshop on Detection and Classification of Acoustic Scenes and Events (DCASE), 2018, submitted.
+[1] I. Nolasco and E. Benetos, “To bee or not to bee: Investigating machine learning approaches to beehive sound recognition”, in Workshop on Detection and Classification of Acoustic Scenes and Events (DCASE), 2018, Accepted.
+
+[2] I. Nolasco, “Audio-based beehive state recognition”,  M.S.thesis, Queen Mary University of London, 2018.
