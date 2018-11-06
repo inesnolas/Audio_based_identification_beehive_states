@@ -21,7 +21,7 @@ Bee not bee classification contains all code developed in the context of the wor
 
 This is an ongoing project for which this document is being updated accordingly.
 
-## Usage Example
+## How to use:
 
 in Bee not bee classification:
 
@@ -31,12 +31,9 @@ Data preprocessing:
 - run Bee_not_bee_classification/data_processing_beeNotbee.py which will process the raw data and create: the audio samples, label files that contain for each sample the label bee/nobee and the beehive state.
 it also splits the samples in 3 sets (train, test and validation) accordingly to the split scheme and saves files containing the id of the samples in each set.
 
-Classification:
 
 
-  
-
-
+ 
 ## License
 
 This project is licensed under the GPL License - see the [LICENSE.md](LICENSE.md) file for details
